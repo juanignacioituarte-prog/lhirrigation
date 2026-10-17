@@ -22,7 +22,9 @@
   header{position:sticky; top:0; z-index:500; background:var(--bg);
     border-bottom:1px solid var(--line); padding:10px 16px; display:flex;
     align-items:center; gap:8px; flex-wrap:wrap;}
-  header h1{font-size:15px; margin:0; letter-spacing:.5px; flex:1; font-weight:700; min-width:160px;}
+  header h1{font-size:15px; margin:0 6px 0 0; letter-spacing:.5px; font-weight:700;}
+  header .spacer{flex:1;}
+  #tabs, #tabs2{display:flex; gap:8px; flex-wrap:wrap;}
   header .sub{font-size:11px; color:var(--ink3); font-weight:400; display:block; letter-spacing:0;}
   .btn{background:var(--card); color:var(--ink); border:1px solid var(--line);
     padding:7px 12px; border-radius:7px; font-size:12px; cursor:pointer; font-weight:600;
@@ -102,6 +104,9 @@
   <span id="tabs" class="hidden">
     <button class="btn" data-view="big">Big consent</button>
     <button class="btn" data-view="small">Small consent</button>
+  </span>
+  <span class="spacer"></span>
+  <span id="tabs2" class="hidden">
     <button class="btn" data-view="config">Config</button>
     <button class="btn hidden" data-view="users" id="usersBtn">Users</button>
   </span>
@@ -201,7 +206,7 @@ function tokenOk(t) {
 }
 
 function showSignin(msg) {
-  ['plan', 'config', 'usersView', 'tabs'].forEach(id => $(id).classList.add('hidden'));
+  ['plan', 'config', 'usersView', 'tabs', 'tabs2'].forEach(id => $(id).classList.add('hidden'));
   $('signin').classList.remove('hidden');
   $('signinMsg').textContent = msg || '';
   if (CLIENT_ID.startsWith('PASTE')) { $('signinMsg').textContent = 'Google sign-in is not set up yet (CLIENT_ID).'; return; }
@@ -256,7 +261,7 @@ function setData(out) {
   const so = document.createElement('a'); so.href = '#'; so.textContent = '(sign out)'; so.style.color = 'var(--ink3)';
   so.onclick = e => { e.preventDefault(); signOut(); };
   $('who').appendChild(so);
-  $('tabs').classList.remove('hidden');
+  $('tabs').classList.remove('hidden'); $('tabs2').classList.remove('hidden');
   $('usersBtn').classList.toggle('hidden', !out.user.admin);
   if (view === 'users' && !out.user.admin) view = D.order[0];
   if (view !== 'config' && view !== 'users' && !D.consents[view]) view = D.order[0];
