@@ -17,11 +17,11 @@
  * Deploy: sh /c/dev/lhirrigation/deploy.sh  (web app: execute as me, anyone).
  */
 
-const SCRIPT_VERSION = "2026-10-17-a";
+const SCRIPT_VERSION = "2026-10-17-b";
 
 // OAuth client ID of the page (Google Cloud console > APIs & Services > Credentials).
 // It is not a secret: it is also in index.html.
-const CLIENT_ID = "PASTE-CLIENT-ID-HERE.apps.googleusercontent.com";
+const CLIENT_ID = "299650316460-f0o2vuc529fkb1sd9ipbc1f1h2jv1ct6.apps.googleusercontent.com";
 
 const DEFAULTS = {
   restr: 60,
