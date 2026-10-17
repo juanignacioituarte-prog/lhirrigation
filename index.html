@@ -103,6 +103,7 @@
     <button class="btn" data-view="big">Big consent</button>
     <button class="btn" data-view="small">Small consent</button>
     <button class="btn" data-view="config">Config</button>
+    <button class="btn hidden" data-view="users" id="usersBtn">Users</button>
   </span>
 </header>
 
@@ -157,7 +158,11 @@
       <span class="unit" id="cfgMsg"></span>
     </div>
     <div id="cfgBody"></div>
-    <section id="usersBox" class="hidden"></section>
+  </div>
+
+  <!-- users view: admins only -->
+  <div id="usersView" class="hidden cfg">
+    <section id="usersBox" style="margin-top:14px"></section>
   </div>
 </div>
 
@@ -196,7 +201,7 @@ function tokenOk(t) {
 }
 
 function showSignin(msg) {
-  ['plan', 'config', 'tabs'].forEach(id => $(id).classList.add('hidden'));
+  ['plan', 'config', 'usersView', 'tabs'].forEach(id => $(id).classList.add('hidden'));
   $('signin').classList.remove('hidden');
   $('signinMsg').textContent = msg || '';
   if (CLIENT_ID.startsWith('PASTE')) { $('signinMsg').textContent = 'Google sign-in is not set up yet (CLIENT_ID).'; return; }
@@ -252,7 +257,9 @@ function setData(out) {
   so.onclick = e => { e.preventDefault(); signOut(); };
   $('who').appendChild(so);
   $('tabs').classList.remove('hidden');
-  if (view !== 'config' && !D.consents[view]) view = D.order[0];
+  $('usersBtn').classList.toggle('hidden', !out.user.admin);
+  if (view === 'users' && !out.user.admin) view = D.order[0];
+  if (view !== 'config' && view !== 'users' && !D.consents[view]) view = D.order[0];
   show();
 }
 
@@ -281,15 +288,17 @@ async function savePlan() {
 
 // When the phone comes back to the page, get what others changed.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && D && !dirty.size && !restrDirty && !saving && view !== 'config') load();
+  if (document.visibilityState === 'visible' && D && !dirty.size && !restrDirty && !saving && view !== 'config' && view !== 'users') load();
 });
 
 // ---------- views ----------
 function show() {
   document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === view));
-  $('plan').classList.toggle('hidden', view === 'config');
+  $('plan').classList.toggle('hidden', view === 'config' || view === 'users');
   $('config').classList.toggle('hidden', view !== 'config');
-  if (view === 'config') { CFG = JSON.parse(JSON.stringify({ order: D.order, consents: D.consents })); renderConfig(); renderUsers(); }
+  $('usersView').classList.toggle('hidden', view !== 'users');
+  if (view === 'config') { CFG = JSON.parse(JSON.stringify({ order: D.order, consents: D.consents })); renderConfig(); }
+  else if (view === 'users') renderUsers();
   else { $('restr').value = D.restr; renderGroups(); calc(); }
 }
 
@@ -434,11 +443,10 @@ function renderConfig() {
 // ---------- users (admins only) ----------
 function renderUsers() {
   const box = $('usersBox');
-  if (!D.user.admin || !D.users) { box.classList.add('hidden'); return; }
-  box.classList.remove('hidden');
+  if (!D.user.admin || !D.users) { box.innerHTML = '<p class="hint">Only admins can see users.</p>'; return; }
   box.innerHTML = `
     <h2>Users</h2>
-    <p class="hint">People who can sign in. Only admins see this. To make someone an admin, tick Admin in the users tab of the sheet.</p>
+    <p class="hint">People who can sign in. Only admins see this page. To make someone an admin, tick Admin in the users tab of the sheet.</p>
     <table>
       <thead><tr><th>Email</th><th class="hide-s" style="text-align:left">Name</th><th></th></tr></thead>
       <tbody>${D.users.map(u => `

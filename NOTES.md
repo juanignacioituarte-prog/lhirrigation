@@ -26,7 +26,7 @@ looks for the email in the **users** tab (column A, any case). Not on the list =
 no access. Take a row out and that person is out straight away.
 
 **Admins** (Admin = TRUE in the users tab): Juani and Colm (Juani, 17 Oct 2026).
-Admins see a Users box in Config and can add or remove users there. A user
+Admins see a Users button at the top and can add or remove users there. A user
 added from the page is never an admin; tick Admin in the sheet for that. An
 admin can only be removed in the sheet.
 
