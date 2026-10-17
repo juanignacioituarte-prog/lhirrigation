@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>LH Irrigation</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  :root{
+    --bg:#101413; --card:#1a201e; --line:#2c3633;
+    --ink:#f2f5f4; --ink2:#a9b5b1; --ink3:#78847f;
+    --accent:#41ab5d;
+    /* input colours, same idea as the old sheet: orange cells are the ones you change */
+    --in:#3a2a1a; --inLine:#8a5a2b;
+    --ok:#41ab5d; --warn:#eda100; --bad:#e34948;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:1100px; margin:0 auto; padding:0 16px 40px;}
+
+  header{position:sticky; top:0; z-index:500; background:var(--bg);
+    border-bottom:1px solid var(--line); padding:10px 16px; display:flex;
+    align-items:center; gap:8px; flex-wrap:wrap;}
+  header h1{font-size:15px; margin:0; letter-spacing:.5px; flex:1; font-weight:700; min-width:160px;}
+  header .sub{font-size:11px; color:var(--ink3); font-weight:400; display:block; letter-spacing:0;}
+  .btn{background:var(--card); color:var(--ink); border:1px solid var(--line);
+    padding:7px 12px; border-radius:7px; font-size:12px; cursor:pointer; font-weight:600;
+    text-decoration:none; display:inline-block; font-family:inherit;}
+  .btn:active{transform:scale(.97);}
+  .btn.on{background:var(--accent); border-color:var(--accent); color:#06140b;}
+  .btn.go{background:var(--accent); border-color:var(--accent); color:#06140b;}
+  .btn.small{padding:4px 8px; font-size:11px;}
+  .btn:disabled{opacity:.4;}
+
+  .status{font-size:11px; color:var(--ink3); padding:6px 0 0; min-height:20px;}
+  .status.bad{color:var(--bad);}
+
+  .tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:10px 0 14px;}
+  .tile{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px;}
+  .tile .lab{font-size:10px; letter-spacing:.9px; color:var(--ink3); text-transform:uppercase;}
+  .tile .val{font-size:26px; font-weight:700; margin-top:3px; line-height:1.1;}
+  .tile .unit{font-size:11px; color:var(--ink2); font-weight:400;}
+  .tile .note{font-size:11px; color:var(--ink3); margin-top:4px;}
+  .tile.in{background:var(--in); border-color:var(--inLine);}
+  .pill{display:inline-block; font-size:10px; padding:2px 7px; border-radius:20px;
+    font-weight:700; letter-spacing:.4px;}
+  .pill.ok{background:rgba(65,171,93,.18); color:var(--ok);}
+  .pill.bad{background:rgba(227,73,72,.18); color:var(--bad);}
+  .ok-t{color:var(--ok);} .bad-t{color:var(--bad);} .warn-t{color:var(--warn);}
+
+  section{background:var(--card); border:1px solid var(--line); border-radius:10px;
+    padding:14px; margin-bottom:14px;}
+  section h2{font-size:12px; margin:0 0 3px; letter-spacing:.8px; text-transform:uppercase; color:var(--ink);
+    display:flex; align-items:center; gap:8px;}
+  section .hint{font-size:11px; color:var(--ink3); margin:0 0 12px;}
+
+  .restr{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:6px;}
+  .restr input{width:90px;}
+  input[type=number]{background:var(--in); color:var(--ink); border:1px solid var(--inLine);
+    border-radius:6px; padding:7px 8px; font-size:16px; font-family:inherit; text-align:right;}
+  input[type=number]:disabled{opacity:.35;}
+  input[type=text]{background:var(--in); color:var(--ink); border:1px solid var(--inLine);
+    border-radius:6px; padding:7px 8px; font-size:15px; width:100%; font-family:inherit;}
+
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{font-size:10px; letter-spacing:.8px; text-transform:uppercase; color:var(--ink3);
+    text-align:right; font-weight:600; padding:4px 6px; border-bottom:1px solid var(--line);}
+  th:first-child, td:first-child{text-align:left;}
+  td{padding:6px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap;}
+  td.name{white-space:normal;}
+  tr.off td{color:var(--ink3);}
+  td input[type=number]{width:70px;}
+  .chk{width:26px; height:26px; accent-color:#e08a3a; cursor:pointer;}
+
+  .sum{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; margin-top:12px;}
+  .sum > div{background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:8px 10px;}
+  .sum .lab{font-size:10px; letter-spacing:.8px; color:var(--ink3); text-transform:uppercase;}
+  .sum .v{font-size:17px; font-weight:700; margin-top:2px;}
+
+  /* the side note: who changed it last, and when */
+  .changed{font-size:11px; color:var(--ink2); background:var(--bg); border-left:3px solid var(--accent);
+    padding:6px 10px; border-radius:4px; margin:8px 0 0;}
+
+  .cfg td input[type=number]{width:90px; font-size:15px;}
+  .cfg .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:8px;}
+  .cfg .row label{font-size:12px; color:var(--ink2);}
+  .cfg .total{font-size:12px; margin-top:6px;}
+  .bar{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:10px 0 14px;}
+
+  #signin{max-width:420px; margin:60px auto; text-align:center;}
+  #signin p{color:var(--ink2); font-size:14px; line-height:1.5;}
+  #gbtn{display:flex; justify-content:center; margin:20px 0;}
+  .foot{font-size:11px; color:var(--ink3); margin-top:20px; line-height:1.5;}
+  .hidden{display:none !important;}
+  @media (max-width:560px){ .hide-s{display:none;} td,th{padding:5px 3px;} td input[type=number]{width:58px;} }
+</style>
+</head>
+<body>
+<header>
+  <h1>LH irrigation <span class="sub" id="who">Which pivots can run, and for how long</span></h1>
+  <span id="tabs" class="hidden">
+    <button class="btn" data-view="big">Big consent</button>
+    <button class="btn" data-view="small">Small consent</button>
+    <button class="btn" data-view="config">Config</button>
+  </span>
+</header>
+
+<div class="wrap">
+  <div class="status" id="status"></div>
+
+  <!-- not signed in -->
+  <div id="signin" class="hidden">
+    <h2 style="font-size:18px">Sign in</h2>
+    <p>Sign in with your Google account. Your email must be on the users list.</p>
+    <div id="gbtn"></div>
+    <p id="signinMsg" class="bad-t"></p>
+  </div>
+
+  <!-- plan view: one consent -->
+  <div id="plan" class="hidden">
+    <div class="tiles">
+      <div class="tile in">
+        <div class="lab">Allowed today</div>
+        <div class="restr">
+          <input type="number" id="restr" min="0" max="100" step="1" inputmode="decimal" />
+          <span class="unit">% of consent</span>
+        </div>
+        <div class="restr">
+          <a class="btn" target="_blank" rel="noopener"
+             href="https://www.ecan.govt.nz/data/irrigation-restrictions/areadetails/2/South-of-the-Conway-River-to-the-Hurunui-River">ECan page</a>
+          <button class="btn" id="full">No restriction</button>
+        </div>
+        <div class="note">ECan, Waiau River @ Marble Point, <b>Band 11: HWRRP A-Block</b>.
+          "No Restriction" = 100. "37% Allocation" = 37.</div>
+      </div>
+      <div class="tile"><div class="lab">Daily volume allowed</div><div class="val" id="tVol">-</div><div class="note" id="tVolN"></div></div>
+      <div class="tile"><div class="lab">Flow running</div><div class="val" id="tLs">-</div><div class="note" id="tLsN"></div></div>
+      <div class="tile"><div class="lab">Volume planned</div><div class="val" id="tUse">-</div><div class="note" id="tUseN"></div></div>
+      <div class="tile"><div class="lab">Water wasted</div><div class="val" id="tWaste">-</div><div class="note">Allowed but not used</div></div>
+    </div>
+    <div class="changed" id="planChanged"></div>
+    <div id="groups" style="margin-top:14px"></div>
+    <div class="foot">
+      Allowed volume = full consent volume x allowed %. Each farm gets its own share of that.
+      Volume of a pivot = l/s x hours x 3.6 (m³). Hours off = 24 - hours on.
+      The restriction cuts only the daily volume, not the flow. The flow limit stays the full consent.
+    </div>
+  </div>
+
+  <!-- config view -->
+  <div id="config" class="hidden cfg">
+    <div class="changed" id="cfgChanged"></div>
+    <div class="bar">
+      <button class="btn go" id="cfgSave">Save config</button>
+      <button class="btn" id="cfgUndo">Undo changes</button>
+      <span class="unit" id="cfgMsg"></span>
+    </div>
+    <div id="cfgBody"></div>
+  </div>
+</div>
+
+<script>
+// ---------- set these two after the Google setup (see NOTES.md) ----------
+const CLIENT_ID = 'PASTE-CLIENT-ID-HERE.apps.googleusercontent.com';
+const API = 'https://script.google.com/macros/s/AKfycbz0L0ZqAnyve6r4_iMPUJRbnKpD-FqtwO4lE3xJ3dmtUsyCgxy8uNPxPce0gDdAtgNR/exec';
+
+const $ = id => document.getElementById(id);
+const num = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
+const r0 = n => Math.round(n).toLocaleString('en-NZ');
+const r1 = n => (Math.round(n * 10) / 10).toLocaleString('en-NZ');
+const signed = n => (n > 0 ? '+' : '') + r0(n);
+const blockVol = b => b.on ? b.ls * b.h * 3.6 : 0;   // m3 = l/s x hours x 3600 / 1000
+const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+};
+
+let D = null;            // data from the sheet
+let CFG = null;          // config being edited (a copy of D)
+let view = store.get('lhi-view') || 'big';
+let token = store.get('lhi-token');
+const dirty = new Set(); // pivot ids changed since the last save
+let restrDirty = false, saveTimer = null, saving = false;
+
+function status(msg, bad) { $('status').textContent = msg || ''; $('status').className = 'status' + (bad ? ' bad' : ''); }
+
+// ---------- Google sign-in ----------
+function tokenOk(t) {
+  if (!t) return false;
+  try { return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).exp * 1000 > Date.now() + 60000; }
+  catch (e) { return false; }
+}
+
+function showSignin(msg) {
+  ['plan', 'config', 'tabs'].forEach(id => $(id).classList.add('hidden'));
+  $('signin').classList.remove('hidden');
+  $('signinMsg').textContent = msg || '';
+  if (CLIENT_ID.startsWith('PASTE')) { $('signinMsg').textContent = 'Google sign-in is not set up yet (CLIENT_ID).'; return; }
+  const go = () => {
+    if (!window.google || !google.accounts) return setTimeout(go, 200);
+    google.accounts.id.initialize({ client_id: CLIENT_ID, callback: onCredential, auto_select: true });
+    google.accounts.id.renderButton($('gbtn'), { theme: 'filled_black', size: 'large', text: 'signin_with' });
+    google.accounts.id.prompt();
+  };
+  go();
+}
+
+function onCredential(r) {
+  token = r.credential; store.set('lhi-token', token);
+  $('signin').classList.add('hidden');
+  load();
+}
+
+function signOut() {
+  store.del('lhi-token'); token = null;
+  if (window.google && google.accounts) google.accounts.id.disableAutoSelect();
+  showSignin();
+}
+
+// ---------- talking to the sheet ----------
+async function call(action, data) {
+  if (!tokenOk(token)) { showSignin('Your sign-in ran out. Please sign in again.'); throw new Error('signin'); }
+  // text/plain: no CORS preflight, Apps Script reads the body as text
+  const res = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ token, action, data }) });
+  const out = await res.json();
+  if (!out.ok) {
+    if (out.error === 'signin') { store.del('lhi-token'); token = null; showSignin('Please sign in again.'); }
+    else if (out.error === 'notallowed') { store.del('lhi-token'); token = null; showSignin(out.email + ' is not on the users list. Ask Juani to add you.'); }
+    throw new Error(out.error);
+  }
+  return out;
+}
+
+async function load() {
+  status('Loading...');
+  try {
+    const out = await call('load');
+    setData(out);
+    status('');
+  } catch (e) { if (e.message !== 'signin' && e.message !== 'notallowed') status('Could not load: ' + e.message, true); }
+}
+
+function setData(out) {
+  D = out; store.set('lhi-data', out);
+  $('who').textContent = 'Signed in: ' + out.user.name + ' ';
+  const so = document.createElement('a'); so.href = '#'; so.textContent = '(sign out)'; so.style.color = 'var(--ink3)';
+  so.onclick = e => { e.preventDefault(); signOut(); };
+  $('who').appendChild(so);
+  $('tabs').classList.remove('hidden');
+  if (view !== 'config' && !D.consents[view]) view = D.order[0];
+  show();
+}
+
+// Ticks and hours save by themselves, 1.5 s after the last change. Only the
+// pivots you changed are sent, so two people can work at the same time.
+function queueSave() {
+  status('Not saved yet...');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(savePlan, 1500);
+}
+
+async function savePlan() {
+  if (saving) { queueSave(); return; }
+  const pivots = [];
+  D.order.forEach(k => D.consents[k].groups.forEach(g => g.blocks.forEach(b => {
+    if (dirty.has(b.id)) pivots.push({ id: b.id, on: b.on, h: b.h });
+  })));
+  const data = { pivots };
+  if (restrDirty) data.restr = D.restr;
+  dirty.clear(); restrDirty = false; saving = true;
+  status('Saving...');
+  try { const out = await call('savePlan', data); saving = false; if (!dirty.size && !restrDirty) setData(out); status('Saved'); }
+  catch (e) { saving = false; pivots.forEach(p => dirty.add(p.id)); if (data.restr !== undefined) restrDirty = true;
+    if (e.message !== 'signin') status('Not saved: ' + e.message + '. Will try again.', true); setTimeout(queueSave, 5000); }
+}
+
+// When the phone comes back to the page, get what others changed.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && D && !dirty.size && !restrDirty && !saving && view !== 'config') load();
+});
+
+// ---------- views ----------
+function show() {
+  document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === view));
+  $('plan').classList.toggle('hidden', view === 'config');
+  $('config').classList.toggle('hidden', view !== 'config');
+  if (view === 'config') { CFG = JSON.parse(JSON.stringify({ order: D.order, consents: D.consents })); renderConfig(); }
+  else { $('restr').value = D.restr; renderGroups(); calc(); }
+}
+
+function changedNote(c) {
+  return c && c.by ? `Last changed by <b>${esc(c.by)}</b>, ${esc(c.at)}` : 'Not changed yet';
+}
+
+function renderGroups() {
+  const c = D.consents[view];
+  $('planChanged').innerHTML = 'Plan: ' + changedNote(D.plan);
+  $('groups').innerHTML = c.groups.map((g, gi) => `
+    <section>
+      <h2>${esc(g.name)} <span class="pill" id="g${gi}pill"></span></h2>
+      <p class="hint">${r1(g.share)}% of the ${esc(c.name.toLowerCase())}. Tick what is running and set the hours.</p>
+      <table>
+        <thead><tr><th>Pivot</th><th class="hide-s">l/s</th><th>On</th><th>Hours</th><th>m³</th><th class="hide-s">Hours off</th></tr></thead>
+        <tbody>${g.blocks.map((b, bi) => `
+          <tr id="r${gi}_${bi}">
+            <td class="name">${esc(b.name)}</td>
+            <td class="hide-s">${r1(b.ls)}</td>
+            <td><input type="checkbox" class="chk" data-g="${gi}" data-b="${bi}" ${b.on ? 'checked' : ''}></td>
+            <td><input type="number" class="hrs" data-g="${gi}" data-b="${bi}" min="0" max="24" step="0.5" inputmode="decimal" value="${b.h}"></td>
+            <td id="v${gi}_${bi}"></td>
+            <td class="hide-s" id="o${gi}_${bi}"></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      <div class="sum">
+        <div><div class="lab">Flow running</div><div class="v" id="g${gi}ls"></div></div>
+        <div><div class="lab">Volume planned</div><div class="v" id="g${gi}vol"></div></div>
+        <div><div class="lab">Volume allowed</div><div class="v" id="g${gi}volA"></div></div>
+        <div><div class="lab">Volume left</div><div class="v" id="g${gi}left"></div></div>
+      </div>
+    </section>`).join('');
+
+  document.querySelectorAll('.chk').forEach(el => el.addEventListener('change', () => {
+    const b = c.groups[el.dataset.g].blocks[el.dataset.b];
+    b.on = el.checked; dirty.add(b.id); calc(); queueSave();
+  }));
+  document.querySelectorAll('.hrs').forEach(el => el.addEventListener('input', () => {
+    let h = num(el.value); if (h > 24) h = 24; if (h < 0) h = 0;
+    const b = c.groups[el.dataset.g].blocks[el.dataset.b];
+    b.h = h; dirty.add(b.id); calc(); queueSave();
+  }));
+}
+
+function calc() {
+  const c = D.consents[view];
+  const volA = c.volume * num(D.restr) / 100;   // allowed m3 per day
+  const lsFull = c.volume / 86.4;               // l/s of the full consent. The restriction cuts the volume, not the flow
+  let useAll = 0, lsAll = 0;
+
+  c.groups.forEach((g, gi) => {
+    let vol = 0, ls = 0;
+    g.blocks.forEach((b, bi) => {
+      const v = blockVol(b);
+      vol += v; if (b.on) ls += b.ls;
+      $('v' + gi + '_' + bi).textContent = b.on ? r0(v) : '';
+      $('o' + gi + '_' + bi).textContent = b.on ? r1(24 - b.h) : '';
+      $('r' + gi + '_' + bi).classList.toggle('off', !b.on);
+      document.querySelector(`.hrs[data-g="${gi}"][data-b="${bi}"]`).disabled = !b.on;
+    });
+    const gVolA = volA * g.share / 100;
+    const left = gVolA - vol;
+    useAll += vol; lsAll += ls;
+    $('g' + gi + 'ls').innerHTML = `${r1(ls)} <span class="unit">l/s</span>`;
+    $('g' + gi + 'vol').innerHTML = `${r0(vol)} <span class="unit">m³</span>`;
+    $('g' + gi + 'volA').innerHTML = `${r0(gVolA)} <span class="unit">m³</span>`;
+    $('g' + gi + 'left').innerHTML = `${signed(left)} <span class="unit">m³</span>`;
+    $('g' + gi + 'left').className = 'v ' + (left < -0.5 ? 'bad-t' : 'ok-t');
+    const pill = $('g' + gi + 'pill');
+    if (left < -0.5) { pill.className = 'pill bad'; pill.textContent = 'OVER BY ' + r0(-left) + ' m³'; }
+    else { pill.className = 'pill ok'; pill.textContent = 'OK'; }
+  });
+
+  const waste = volA - useAll > 1 ? volA - useAll : 0;
+  $('tVol').innerHTML = `${r0(volA)} <span class="unit">m³</span>`;
+  $('tVolN').textContent = `Full consent ${r0(c.volume)} m³`;
+  $('tLs').innerHTML = `${r1(lsAll)} <span class="unit">l/s</span>`;
+  $('tLs').className = 'val ' + (lsAll > lsFull + 0.05 ? 'bad-t' : '');
+  $('tLsN').textContent = `Consent maximum ${r1(lsFull)} l/s` + (lsAll > lsFull + 0.05 ? ` (${r1(lsAll - lsFull)} over)` : '');
+  $('tUse').innerHTML = `${r0(useAll)} <span class="unit">m³</span>`;
+  $('tUse').className = 'val ' + (useAll > volA + 0.5 ? 'bad-t' : '');
+  $('tUseN').textContent = useAll > volA + 0.5 ? `Over by ${r0(useAll - volA)} m³` : `${r0(volA - useAll)} m³ left`;
+  $('tWaste').innerHTML = `${r0(waste)} <span class="unit">m³</span>`;
+  $('tWaste').className = 'val ' + (waste > 0 ? 'warn-t' : 'ok-t');
+}
+
+// ---------- config view ----------
+function renderConfig() {
+  $('cfgChanged').innerHTML = 'Config: ' + changedNote(D.config);
+  $('cfgMsg').textContent = '';
+  $('cfgBody').innerHTML = CFG.order.map(k => {
+    const c = CFG.consents[k];
+    const shares = c.groups.reduce((s, g) => s + num(g.share), 0);
+    return `<section>
+      <h2>${esc(c.name)}</h2>
+      <div class="row"><label>Not restricted volume (m³ per day)</label>
+        <input type="number" data-k="volume" data-c="${k}" value="${c.volume}" step="1" inputmode="decimal">
+        <span class="unit">= ${r1(c.volume / 86.4)} l/s</span></div>
+      ${c.groups.map((g, gi) => `
+        <section style="background:var(--bg)">
+          <div class="row"><label>Farm</label>
+            <input type="text" data-k="gname" data-c="${k}" data-g="${gi}" value="${esc(g.name)}" style="max-width:220px">
+            <label>Share</label>
+            <input type="number" data-k="share" data-c="${k}" data-g="${gi}" value="${g.share}" step="0.01" inputmode="decimal"> <span class="unit">%</span></div>
+          <table>
+            <thead><tr><th>Pivot</th><th>l/s</th><th></th></tr></thead>
+            <tbody>${g.blocks.map((b, bi) => `
+              <tr><td class="name"><input type="text" data-k="name" data-c="${k}" data-g="${gi}" data-b="${bi}" value="${esc(b.name)}"></td>
+                  <td><input type="number" data-k="ls" data-c="${k}" data-g="${gi}" data-b="${bi}" value="${b.ls}" step="0.5" inputmode="decimal"></td>
+                  <td><button class="btn small" data-del="${k}|${gi}|${bi}">Remove</button></td></tr>`).join('')}
+            </tbody>
+          </table>
+          <div class="bar"><button class="btn small" data-add="${k}|${gi}">+ Add pivot</button></div>
+        </section>`).join('')}
+      <div class="total ${Math.abs(shares - 100) > 0.01 ? 'bad-t' : 'ok-t'}">Shares add up to ${r1(shares)}%${Math.abs(shares - 100) > 0.01 ? ' (should be 100%)' : ''}</div>
+    </section>`;
+  }).join('');
+
+  $('cfgBody').querySelectorAll('input').forEach(el => el.addEventListener('change', () => {
+    const c = CFG.consents[el.dataset.c], g = c.groups[el.dataset.g], b = g && g.blocks[el.dataset.b], k = el.dataset.k;
+    if (k === 'volume') c.volume = num(el.value);
+    else if (k === 'share') g.share = num(el.value);
+    else if (k === 'gname') g.name = el.value.trim() || g.name;
+    else if (k === 'ls') b.ls = num(el.value);
+    else if (k === 'name') b.name = el.value.trim() || b.name;
+    renderConfig(); $('cfgMsg').textContent = 'Not saved yet';
+  }));
+  $('cfgBody').querySelectorAll('[data-add]').forEach(el => el.addEventListener('click', () => {
+    const [k, gi] = el.dataset.add.split('|');
+    CFG.consents[k].groups[gi].blocks.push({ id: 'p' + Date.now(), name: 'New pivot', ls: 0, on: false, h: 0 });
+    renderConfig(); $('cfgMsg').textContent = 'Not saved yet';
+  }));
+  $('cfgBody').querySelectorAll('[data-del]').forEach(el => el.addEventListener('click', () => {
+    const [k, gi, bi] = el.dataset.del.split('|');
+    CFG.consents[k].groups[gi].blocks.splice(bi, 1);
+    renderConfig(); $('cfgMsg').textContent = 'Not saved yet';
+  }));
+}
+
+$('cfgSave').addEventListener('click', async () => {
+  for (const k of CFG.order) {
+    const s = CFG.consents[k].groups.reduce((a, g) => a + num(g.share), 0);
+    if (Math.abs(s - 100) > 0.01) { $('cfgMsg').textContent = CFG.consents[k].name + ': shares must add up to 100%.'; return; }
+  }
+  $('cfgSave').disabled = true; $('cfgMsg').textContent = 'Saving...';
+  try { const out = await call('saveConfig', CFG); setData(out); $('cfgMsg').textContent = 'Saved'; }
+  catch (e) { $('cfgMsg').textContent = 'Not saved: ' + e.message; }
+  $('cfgSave').disabled = false;
+});
+$('cfgUndo').addEventListener('click', () => show());
+
+// ---------- buttons ----------
+$('restr').addEventListener('input', () => {
+  D.restr = Math.max(0, Math.min(100, num($('restr').value))); restrDirty = true; calc(); queueSave();
+});
+$('full').addEventListener('click', () => { D.restr = 100; $('restr').value = 100; restrDirty = true; calc(); queueSave(); });
+document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => {
+  if (view === 'config' && $('cfgMsg').textContent === 'Not saved yet' && !confirm('Leave without saving the config?')) return;
+  view = b.dataset.view; store.set('lhi-view', view); show();
+}));
+
+// ---------- start ----------
+if (tokenOk(token)) {
+  const cached = store.get('lhi-data');
+  if (cached && cached.consents) setData(cached);   // show the last numbers straight away
+  load();
+} else {
+  showSignin();
+}
+</script>
+</body>
+</html>
