@@ -157,6 +157,7 @@
       <span class="unit" id="cfgMsg"></span>
     </div>
     <div id="cfgBody"></div>
+    <section id="usersBox" class="hidden"></section>
   </div>
 </div>
 
@@ -288,7 +289,7 @@ function show() {
   document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === view));
   $('plan').classList.toggle('hidden', view === 'config');
   $('config').classList.toggle('hidden', view !== 'config');
-  if (view === 'config') { CFG = JSON.parse(JSON.stringify({ order: D.order, consents: D.consents })); renderConfig(); }
+  if (view === 'config') { CFG = JSON.parse(JSON.stringify({ order: D.order, consents: D.consents })); renderConfig(); renderUsers(); }
   else { $('restr').value = D.restr; renderGroups(); calc(); }
 }
 
@@ -428,6 +429,39 @@ function renderConfig() {
     CFG.consents[k].groups[gi].blocks.splice(bi, 1);
     renderConfig(); $('cfgMsg').textContent = 'Not saved yet';
   }));
+}
+
+// ---------- users (admins only) ----------
+function renderUsers() {
+  const box = $('usersBox');
+  if (!D.user.admin || !D.users) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  box.innerHTML = `
+    <h2>Users</h2>
+    <p class="hint">People who can sign in. Only admins see this. To make someone an admin, tick Admin in the users tab of the sheet.</p>
+    <table>
+      <thead><tr><th>Email</th><th class="hide-s" style="text-align:left">Name</th><th></th></tr></thead>
+      <tbody>${D.users.map(u => `
+        <tr><td class="name">${esc(u.email)}</td><td class="hide-s name" style="text-align:left">${esc(u.name)}</td>
+            <td>${u.admin ? '<span class="pill ok">ADMIN</span>' : `<button class="btn small" data-rmuser="${esc(u.email)}">Remove</button>`}</td></tr>`).join('')}
+      </tbody>
+    </table>
+    <div class="row" style="margin-top:12px">
+      <input type="text" id="nuEmail" placeholder="Email" style="max-width:260px" autocomplete="off">
+      <input type="text" id="nuName" placeholder="Name" style="max-width:180px" autocomplete="off">
+      <button class="btn go" id="nuAdd">Add user</button>
+    </div>
+    <div class="unit" id="usersMsg"></div>`;
+  $('nuAdd').addEventListener('click', () => userCall('addUser', { email: $('nuEmail').value, name: $('nuName').value }));
+  box.querySelectorAll('[data-rmuser]').forEach(el => el.addEventListener('click', () => {
+    if (confirm('Remove ' + el.dataset.rmuser + '?')) userCall('removeUser', { email: el.dataset.rmuser });
+  }));
+}
+
+async function userCall(action, data) {
+  $('usersMsg').textContent = 'Saving...';
+  try { const out = await call(action, data); D.users = out.users; D.user = out.user; renderUsers(); $('usersMsg').textContent = 'Saved'; }
+  catch (e) { $('usersMsg').textContent = 'Not saved: ' + e.message; }
 }
 
 $('cfgSave').addEventListener('click', async () => {

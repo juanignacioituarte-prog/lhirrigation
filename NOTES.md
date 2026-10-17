@@ -25,11 +25,16 @@ The script asks Google if the token is real and made for our client ID, then
 looks for the email in the **users** tab (column A, any case). Not on the list =
 no access. Take a row out and that person is out straight away.
 
+**Admins** (Admin = TRUE in the users tab): Juani and Colm (Juani, 17 Oct 2026).
+Admins see a Users box in Config and can add or remove users there. A user
+added from the page is never an admin; tick Admin in the sheet for that. An
+admin can only be removed in the sheet.
+
 ## Tabs in the sheet
 
 | Tab | Columns |
 |---|---|
-| users | Email, Name (the name shows in the "changed by" notes) |
+| users | Email, Name (shows in the "changed by" notes), Admin (TRUE/FALSE) |
 | consents | Key (big/small), Name, Volume m3 (not restricted, per day) |
 | groups | Consent, Group (farm), Share % |
 | pivots | Id, Consent, Group, Pivot, l/s, On, Hours |

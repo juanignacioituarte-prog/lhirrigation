@@ -7,7 +7,7 @@
  * the email is in the "users" tab. Nobody else can read or change anything.
  *
  * Tabs (made with the starting numbers the first time the script runs):
- *   users     Email | Name                         <- who can use the page
+ *   users     Email | Name | Admin                 <- who can use the page. Admin = TRUE can add/remove users
  *   consents  Key | Name | Volume m3               <- full daily volume, not restricted
  *   groups    Consent | Group | Share %            <- share of the consent per farm
  *   pivots    Id | Consent | Group | Pivot | l/s | On | Hours
@@ -17,7 +17,7 @@
  * Deploy: sh /c/dev/lhirrigation/deploy.sh  (web app: execute as me, anyone).
  */
 
-const SCRIPT_VERSION = "2026-10-17-b";
+const SCRIPT_VERSION = "2026-10-17-c";
 
 // OAuth client ID of the page (Google Cloud console > APIs & Services > Credentials).
 // It is not a secret: it is also in index.html.
@@ -25,7 +25,7 @@ const CLIENT_ID = "299650316460-f0o2vuc529fkb1sd9ipbc1f1h2jv1ct6.apps.googleuser
 
 const DEFAULTS = {
   restr: 60,
-  users: [["juanignacioituarte@gmail.com", "Juani"]],
+  users: [["juanignacioituarte@gmail.com", "Juani", true]],
   consents: [
     ["big", "Big consent", 34560],
     ["small", "Small consent", 20088],
@@ -57,7 +57,7 @@ const DEFAULTS = {
 };
 
 const HEADERS = {
-  users: ["Email", "Name"],
+  users: ["Email", "Name", "Admin"],
   consents: ["Key", "Name", "Volume m3"],
   groups: ["Consent", "Group", "Share %"],
   pivots: ["Id", "Consent", "Group", "Pivot", "l/s", "On", "Hours"],
@@ -83,13 +83,15 @@ function doPost(e) {
   ensureSheets();
   const lock = LockService.getScriptLock();
   try {
-    if (req.action === "load") return json(Object.assign({ ok: true, user: who.user }, readAll()));
+    if (req.action === "load") return json(Object.assign({ ok: true, user: who.user }, readAll(who.user)));
     lock.waitLock(20000);
     if (req.action === "savePlan") { savePlan(req.data, who.user); }
     else if (req.action === "saveConfig") { saveConfig(req.data, who.user); }
+    else if (req.action === "addUser") { addUser(req.data, who.user); }
+    else if (req.action === "removeUser") { removeUser(req.data, who.user); }
     else return json({ ok: false, error: "unknown action" });
     SpreadsheetApp.flush();
-    return json(Object.assign({ ok: true, user: who.user }, readAll()));
+    return json(Object.assign({ ok: true, user: who.user }, readAll(who.user)));
   } catch (err) {
     return json({ ok: false, error: String(err.message || err) });
   } finally {
@@ -129,7 +131,7 @@ function checkUser(token) {
   const users = rows("users");
   const u = users.find(r => String(r[0]).trim().toLowerCase() === email);
   if (!u) return { ok: false, error: "notallowed", email: email };
-  return { ok: true, user: { email: email, name: String(u[1] || email) } };
+  return { ok: true, user: { email: email, name: String(u[1] || email), admin: isTrue(u[2]) } };
 }
 
 // ---------- the sheet ----------
@@ -172,8 +174,19 @@ function ensureSheets() {
     if (name === "pivots") writeRows(name, DEFAULTS.pivots.map((p, i) => ["p" + (i + 1)].concat(p)));
     if (name === "settings") writeRows(name, [["restr", DEFAULTS.restr], ["plan_by", ""], ["plan_at", ""], ["config_by", ""], ["config_at", ""]]);
   });
-  const first = book.getSheetByName("Sheet1");
-  if (first && book.getSheets().length > 1 && first.getLastRow() === 0) book.deleteSheet(first);
+  // Sheets made before the Admin column: add it, and make the first users admins.
+  const us = book.getSheetByName("users");
+  if (us.getRange(1, 3).getValue() === "") {
+    us.getRange(1, 3).setValue("Admin").setFontWeight("bold");
+    const first = DEFAULTS.users.map(u => u[0]);
+    const n = us.getLastRow() - 1;
+    if (n > 0) {
+      const em = us.getRange(2, 1, n, 1).getValues();
+      us.getRange(2, 3, n, 1).setValues(em.map(r => [first.indexOf(String(r[0]).trim().toLowerCase()) >= 0]));
+    }
+  }
+  const blank = book.getSheetByName("Sheet1");
+  if (blank && book.getSheets().length > 1 && blank.getLastRow() === 0) book.deleteSheet(blank);
 }
 
 function settings() {
@@ -192,8 +205,10 @@ function stamp(d) {
   return d instanceof Date ? Utilities.formatDate(d, "Pacific/Auckland", "d MMM yyyy HH:mm") : String(d || "");
 }
 
-// Everything the page needs, in the shape the page uses.
-function readAll() {
+function isTrue(v) { return v === true || String(v).trim().toUpperCase() === "TRUE"; }
+
+// Everything the page needs, in the shape the page uses. Admins also get the users list.
+function readAll(user) {
   const st = settings();
   const consents = {}, order = [];
   rows("consents").forEach(r => {
@@ -208,9 +223,13 @@ function readAll() {
   rows("pivots").forEach(r => {
     const c = consents[String(r[1]).trim()];
     const g = c && c.groups.find(x => x.name === String(r[2]));
-    if (g) g.blocks.push({ id: String(r[0]), name: String(r[3]), ls: Number(r[4]) || 0, on: r[5] === true || String(r[5]).toUpperCase() === "TRUE", h: Number(r[6]) || 0 });
+    if (g) g.blocks.push({ id: String(r[0]), name: String(r[3]), ls: Number(r[4]) || 0, on: isTrue(r[5]), h: Number(r[6]) || 0 });
   });
+  const users = user && user.admin
+    ? rows("users").map(r => ({ email: String(r[0]).trim().toLowerCase(), name: String(r[1]), admin: isTrue(r[2]) }))
+    : null;
   return {
+    users: users,
     version: SCRIPT_VERSION,
     restr: Number(st.restr),
     plan: { by: String(st.plan_by || ""), at: stamp(st.plan_at) },
@@ -271,6 +290,30 @@ function saveConfig(d, user) {
   writeRows("pivots", pivs);
   setSettings({ config_by: user.name, config_at: new Date() });
   log(user, "config", d);
+}
+
+// Admins only. A new user is never an admin: tick Admin in the sheet for that.
+function addUser(d, user) {
+  if (!user.admin) throw new Error("only an admin can change users");
+  const email = String(d.email || "").trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("not an email: " + email);
+  const all = rows("users");
+  if (all.some(r => String(r[0]).trim().toLowerCase() === email)) throw new Error(email + " is already on the list");
+  all.push([email, String(d.name || "").trim() || email, false]);
+  writeRows("users", all);
+  log(user, "addUser", { email: email, name: d.name });
+}
+
+// Admins only. Admins cannot be removed from the page (do it in the sheet).
+function removeUser(d, user) {
+  if (!user.admin) throw new Error("only an admin can change users");
+  const email = String(d.email || "").trim().toLowerCase();
+  const all = rows("users");
+  const u = all.find(r => String(r[0]).trim().toLowerCase() === email);
+  if (!u) throw new Error(email + " is not on the list");
+  if (isTrue(u[2])) throw new Error("an admin can only be removed in the sheet");
+  writeRows("users", all.filter(r => r !== u));
+  log(user, "removeUser", { email: email });
 }
 
 function log(user, action, details) {
